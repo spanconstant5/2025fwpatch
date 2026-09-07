@@ -10,6 +10,17 @@ Verified working on a **2023 Toyota Corolla (US-made, VIN prefix 5)**.
 
 # English
 
+Offline 2025 evidence: `eps_patch.corolla_2025.verify_codeflash()` verifies the exact
+Span acquisition without hardware or artifact writes. Its authority is
+[the pinned Corolla report](https://github.com/kaikozlov/ghidra_rh850/blob/a747ee291b94ffecbee69cf062aec72b23c4dc8d/docs/variants/corolla-8965F1208000.md)
+and related `verify_spanconstant_*` tests. The reconstructed F181 is
+`02 || 8965F1208000[16] || 8A3111213000[16]`, with NUL padding. Runtime still
+accepts only the existing `8A3111202000` secondary record. Source-sector equality
+does not establish the 2025 route, payload runtime, or steering compatibility.
+Set `COROLLA_EVIDENCE_ROOT` to that reference checkout and run
+`python -m pytest tests/test_corolla_2025.py tests/test_envelope_pins.py`.
+Without the variable, real-corpus tests explicitly skip; an invalid supplied path fails.
+
 ## 0. Risk Warning
 
 Read this chapter before connecting a Panda or powering the EPS.
@@ -295,7 +306,7 @@ The operator never selects `0xE0000`, `0x88000`, or `0xF8000`. These values are 
 
 RequestDownload is 4 KiB because it carries executable payload code, not a sector image. A 32 KiB sector is never uploaded from the host to SRAM. The fixed writer reads the live Flash sector into ECU SRAM, checks that it is the exact expected source, changes only the reviewed byte/CRC adjustment, calculates the candidate checks, and then performs the fixed-direction erase/program sequence.
 
-The reviewed target change is a single control-flow byte in the `0x88000` sector. The four-byte aligned instruction word at `0x8E6C4` is `0xD1E0301D` in the original firmware and `0x01E0301D` after the patch: only byte `0x8E6C7` changes, from `0xD1` to `0x01`. That byte is the low byte of the 16-bit instruction `cmp r0, r26`; changing it to `cmp r0, r0` forces the always-equal condition and permanently neutralizes the following conditional branch, which is the reviewed control-flow bypass.
+The reviewed target change is a single control-flow byte in the `0x88000` sector. The aligned four-byte context at `0x88C60` changes from `1d 30 e0 d1` to `1d 30 e0 01`: only byte `0x88C63` changes from `0xD1` to `0x01`. It is the second byte of the 16-bit comparison at `0x88C62`; the branch at `0x88C64` is preserved and the comparison forces its verified fallthrough. The older `0x8E6C7` location is not this Corolla's patch address.
 
 Because boot integrity covers that change, the CRC-sector adjustment word at `0xFFDEC` must also change. On the reviewed firmware the patched-prefix CRC is `0x22A0EB88` and the candidate adjustment word is `0xDD5F1477`, so the full Code Flash range CRC residue stays `0xFFFFFFFF`. This is why a complete patch requires both `0x88000` and `0xF8000` rather than only the instruction byte.
 
@@ -500,6 +511,16 @@ Keep the entire artifact tree, terminal transcript, exact Git commit, retained m
 Yes. The FACI sequence is byte-identical to the flash shellcode in Toyota's Calibration Update Wizard packages, cross-verified in Ghidra against the `8965F3...` CUW erase/program payload. Two differences are stricter cleanup, not functional changes: `exit_pe` also writes `FENTRYR` `0xAA00`, and `failure_cleanup` issues Status Clear `0x50` in addition to Forced Stop `0xB3`. See Section 2.7.
 
 # 中文
+
+2025 离线证据：`eps_patch.corolla_2025.verify_codeflash()` 只验证精确的 Span
+采集文件，不连接硬件，也不写入运行时证据。依据为
+[固定版本的 Corolla 报告](https://github.com/kaikozlov/ghidra_rh850/blob/a747ee291b94ffecbee69cf062aec72b23c4dc8d/docs/variants/corolla-8965F1208000.md)
+及相关 `verify_spanconstant_*` 测试。重建的 F181 为
+`02 || 8965F1208000[16] || 8A3111213000[16]`，记录以 NUL 补齐。
+运行时仍只接受原有的 `8A3111202000` 第二记录。源扇区一致不能证明 2025
+路由、payload 运行环境或转向功能兼容。将 `COROLLA_EVIDENCE_ROOT` 指向参考仓库后，运行
+`python -m pytest tests/test_corolla_2025.py tests/test_envelope_pins.py` 可验证真实采集文件。
+未设置路径时明确跳过真实文件测试；提供无效路径则失败。
 
 已在 **2024 款丰田 RAV4 Prime** 和 **2026 款丰田 Sienna(中国制造)** 上验证可用。
 
@@ -786,7 +807,7 @@ trigger range 不是 Flash 目标。专用 target 与 CRC payload 始终读、�
 
 RequestDownload 是 4 KiB，因为主机下载的是可执行 payload，不是扇区镜像。32 KiB 扇区绝不会由主机上传到 SRAM。固定 writer 在 ECU 内读取 live Flash 扇区到 SRAM，确认它是精确预期 source，只改变已审查字节或 CRC 调整字，计算 candidate 检查，然后执行固定方向擦写。
 
-已审查的 target 改动是 `0x88000` 扇区内的单个控制流字节。位于 `0x8E6C4` 的 4 字节对齐指令字，原厂固件是 `0xD1E0301D`，patch 后是 `0x01E0301D`：只有字节 `0x8E6C7` 从 `0xD1` 变成 `0x01`。该字节是 16 位指令 `cmp r0, r26` 的低字节；改成 `cmp r0, r0` 后恒为相等，永久中和了其后的条件分支，这就是已审查的控制流旁路。
+已审查的 target 改动是 `0x88000` 扇区内的单个控制流字节。`0x88C60` 的对齐 4 字节上下文由 `1d 30 e0 d1` 变为 `1d 30 e0 01`：只有 `0x88C63` 从 `0xD1` 变成 `0x01`。它是 `0x88C62` 处 16 位比较指令的第二个字节；`0x88C64` 处的分支指令保持不变，比较结果强制进入验证成功的顺序路径。旧位置 `0x8E6C7` 不是本 Corolla 的 patch 地址。
 
 由于 boot integrity 覆盖该变化，`0xFFDEC` 处 CRC 扇区调整字也必须改变。已审查固件上 patch 后的 prefix CRC 为 `0x22A0EB88`，candidate 调整字为 `0xDD5F1477`，使完整 Code Flash 范围 CRC residue 保持 `0xFFFFFFFF`。因此完整 patch 同时需要 `0x88000` 与 `0xF8000`，而不是只改一个指令字节。
 

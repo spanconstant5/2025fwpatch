@@ -181,9 +181,9 @@ def _payloads():
 
   build = Path(__file__).resolve().parents[1] / "payload" / "build"
   digests = {
-    "crc_probe": "c52089e58fbeb0e6a4955fcac8ca27e9118b090b07a3551ce3a31d49e787aa21",
-    "crc_intermediate": "9df9a088e841fdfc7fe6fa37fc30e53d4835d3973d9d25bc32248fa7688e78c4",
-    "crc_verify": "baf340143bcb2f577c3a6c03e9ba56774ee04735c5beba754df81c5a4ecc3c47",
+    "crc_probe": "26dd9f2dcd27eca4021bd06ac4c75e0f09a5884d4b56b9f0a870e12f9bf1948e",
+    "crc_intermediate": "dd9497c50f81d5def2e93c133292fa721a2505ca2f10009c07bb0a17777b3b4c",
+    "crc_verify": "2391fb27522270d19d56fc036500ab2a1447bf0aacbaa04075a555d337713011",
     "live_read": LIVE_READ_ENVELOPE_SHA256,
   }
   payloads = {}
