@@ -2,16 +2,44 @@
 
 [English](#english) · [中文](#中文)
 
-[![CI](https://github.com/Kev-ORG/8965F1208000-FW-PATCH/actions/workflows/ci.yml/badge.svg)](https://github.com/Kev-ORG/8965F1208000-FW-PATCH/actions/workflows/ci.yml)
+[![CI](https://github.com/spanconstant5/2025fwpatch/actions/workflows/ci.yml/badge.svg)](https://github.com/spanconstant5/2025fwpatch/actions/workflows/ci.yml)
 
-This repository provides a deliberately narrow, comma-local workflow for the reviewed `8965F1208000` EPS on a stationary private bench. Its public commands are only `probe`, `patch`, and `restore`.
+This repository contains a fail-closed EPS patch workflow and the offline evidence
+binding for the Span/`spanconstant5` 2025 Toyota Corolla Hybrid. Its public
+commands are only `probe`, `patch`, and `restore`.
 
-Verified working on a **2023 Toyota Corolla (US-made, VIN prefix 5)**.
+## 2025 Corolla status
+
+**The 2025 dump is verified; the runtime writer is still blocked for this 2025
+ECU.** The program recognizes the complete 2025 CodeFlash corpus offline but
+deliberately refuses to use that result as permission to flash.
+
+| Item | Status | Exact value or boundary |
+|---|---|---|
+| Primary application F181 | Verified | `8965F1208000` |
+| Secondary application F181 | Verified | `8A3111213000` |
+| ECU serial | Verified | `8965012N50E12H030731` |
+| MCU | Verified | `R7F701383` |
+| Acquisition route | Observed | bus 1, Panda parameter 1 |
+| Patch and CRC source sectors | Verified offline | SHA-pinned from the retained 2025 dump |
+| High application-code transfer | Verified offline | byte-identical to the analyzed 2023 image from `0x17E00` upward |
+| 2025 runtime transport/payload behavior | Unresolved | no 2025 eligibility is granted |
+| Runtime application F181 allowlist | 2023 only | secondary record `8A3111202000` |
+
+The existing patch workflow was verified on a **2023 Toyota Corolla (US-made,
+VIN prefix 5)**. A matching primary part number and identical high application
+code do not prove that the retained payload, buffers, Flash controller state,
+or CAN route behave the same on the 2025 ECU. The exact secondary identity
+difference is therefore a hard stop, not a warning.
+
+The related StarPilot build is maintained separately at
+[spanconstant5/2025corolla-starpilot](https://github.com/spanconstant5/2025corolla-starpilot).
+Firmware patch eligibility and openpilot vehicle support are independent.
 
 # English
 
-Offline 2025 evidence: `eps_patch.corolla_2025.verify_codeflash()` verifies the exact
-Span acquisition without hardware or artifact writes. Its authority is
+`eps_patch.corolla_2025.verify_codeflash()` verifies the exact Span acquisition
+without hardware or artifact writes. Its authority is
 [the pinned Corolla report](https://github.com/kaikozlov/ghidra_rh850/blob/a747ee291b94ffecbee69cf062aec72b23c4dc8d/docs/variants/corolla-8965F1208000.md)
 and related `verify_spanconstant_*` tests. The reconstructed F181 is
 `02 || 8965F1208000[16] || 8A3111213000[16]`, with NUL padding. Runtime still
@@ -20,6 +48,17 @@ does not establish the 2025 route, payload runtime, or steering compatibility.
 Set `COROLLA_EVIDENCE_ROOT` to that reference checkout and run
 `python -m pytest tests/test_corolla_2025.py tests/test_envelope_pins.py`.
 Without the variable, real-corpus tests explicitly skip; an invalid supplied path fails.
+
+For a quick offline review with no ECU connection:
+
+```bash
+python -m pytest -q
+git diff --check
+```
+
+The complete operating guide below applies only to an identity already accepted
+by the runtime manifest. It does not turn the verified 2025 dump into an
+accepted runtime target.
 
 ## 0. Risk Warning
 
