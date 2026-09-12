@@ -237,6 +237,61 @@ def test_probe_pass_does_not_write_failure_diagnostic(probe_case):
   )
 
   assert not layout.probe_failure_report.exists()
+  assert not layout.probe_identity_failure_report.exists()
+
+
+def test_identity_mismatch_records_observed_values_without_running_payload(probe_case):
+  from eps_patch.probe import ProbeError, run_probe
+
+  layout, target, payload, identity, result = probe_case
+  observed_application = (
+    b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
+  )
+  identity = replace(
+    identity,
+    part_number=b"",
+    application_software_id=observed_application,
+  )
+  transport = FakeTransport(identity, result)
+
+  with pytest.raises(
+    ProbeError,
+    match=r"ECU identity does not exactly match the target.*last-probe-identity-mismatch\.json",
+  ):
+    run_probe(
+      layout=layout,
+      payload=payload,
+      preflight=lambda: None,
+      transport_factory=lambda: transport,
+      target=target,
+      new_uds=False,
+    )
+
+  assert transport.operations == []
+  report = json.loads(layout.probe_identity_failure_report.read_text(encoding="utf-8"))
+  assert report == {
+    "authorizes_patch_or_restore": False,
+    "expected": {
+      "application_software_id": target.application_software_id.hex(),
+      "boot_software_id": target.boot_software_id.hex(),
+      "part_number": target.part_number.decode("ascii"),
+    },
+    "observed": {
+      "application_software_id": observed_application.hex(),
+      "boot_software_id": target.boot_software_id.hex(),
+      "panda_serial": "test-panda",
+      "part_number": "",
+    },
+    "payload": {
+      "name": "probe_pe_cycle",
+      "sha256": REVIEWED_PROBE_ENVELOPE_SHA256,
+    },
+    "reason": "identity-mismatch",
+    "result": "REJECTED",
+    "workflow": "probe-identity-check",
+  }
+  assert not layout.probe_directory.exists()
+  assert not layout.probe_failure_report.exists()
 
 
 def test_malformed_probe_result_does_not_write_failure_diagnostic(probe_case):

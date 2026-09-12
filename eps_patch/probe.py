@@ -116,7 +116,18 @@ def run_probe(
   preflight()
   with transport_factory() as transport:
     identity = transport.read_identity()
-    _validate_identity(identity, target)
+    try:
+      _validate_identity(identity, target)
+    except ProbeError as exc:
+      if type(identity) is not EcuIdentity:
+        raise
+      try:
+        path = _record_identity_mismatch(layout, identity, payload, target)
+      except OSError as write_exc:
+        raise ProbeError(
+          f"{exc}; identity diagnostic write failed: {write_exc}"
+        ) from exc
+      raise ProbeError(f"{exc}; diagnostic: {path}") from exc
     result = transport.run_payload(
       payload, operation=OP_FACI_PE_CYCLE, new_uds=new_uds,
     )
@@ -207,6 +218,31 @@ def _failure_stream_diagnostic(
     "snapshots": _failure_snapshot_records(result.faci_values),
     "regions": descriptors,
   }
+
+
+def _record_identity_mismatch(
+  layout: ArtifactLayout,
+  identity: EcuIdentity,
+  payload: PayloadImage,
+  target: TargetManifest,
+) -> Path:
+  """Retain observed F181 values without creating trusted probe evidence."""
+  report = {
+    "workflow": "probe-identity-check",
+    "result": "REJECTED",
+    "reason": "identity-mismatch",
+    "authorizes_patch_or_restore": False,
+    "observed": _identity_record(identity),
+    "expected": {
+      "part_number": target.part_number.decode("ascii", errors="strict"),
+      "application_software_id": target.application_software_id.hex(),
+      "boot_software_id": target.boot_software_id.hex(),
+    },
+    "payload": {"name": payload.name, "sha256": payload.sha256},
+  }
+  content = json.dumps(report, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
+  _atomic_replace(layout.probe_identity_failure_report, content)
+  return layout.probe_identity_failure_report
 
 
 def _failure_dcra_record(result: StreamResult) -> dict[str, int]:

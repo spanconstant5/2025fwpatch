@@ -181,6 +181,18 @@ If a complete probe stream has a non-PASS outcome, the command does not create `
 
 That diagnostic includes identity, payload, outcome, magic, the complete DCRA observation, five FACI snapshots, and address/length/SHA-256/CRC32 summaries for both returned sectors. It contains no sector bytes and cannot authorize patch or restore. Preserve it and the terminal output for analysis; do not repeatedly run probe merely to collect more values.
 
+If the application or boot F181 identity is rejected before the payload runs,
+the command instead atomically replaces this untrusted diagnostic:
+
+```text
+/data/eps-patch/artifacts/failures/last-probe-identity-mismatch.json
+```
+
+It records the observed and expected F181 values, Panda serial, and reviewed
+payload digest. It explicitly cannot authorize patch or restore, contains no
+sector bytes, and does not weaken the identity allowlist. Preserve it rather
+than rerunning the probe to collect the same identity.
+
 ### 1.5 Patch: one safe stage per invocation
 
 Start or resume patch with the same command every time:
@@ -681,6 +693,14 @@ Probe 绝不擦除或写入 Flash。它执行一次综合只读证据流程，�
 ```
 
 该诊断包含身份、payload、outcome、magic、完整 DCRA 观察、五个 FACI 快照，以及两个回传扇区的地址/长度/SHA-256/CRC32 摘要。它不包含扇区内容，也不能授权 patch 或 restore。保留它与终端输出用于分析；不要只是为了收集更多数值而反复运行 probe。
+
+如果 application 或 boot F181 身份在 payload 执行前被拒绝，命令会改为原子替换以下不可信诊断：
+
+```text
+/data/eps-patch/artifacts/failures/last-probe-identity-mismatch.json
+```
+
+该文件记录实际与预期 F181、Panda serial 和已审查 payload 摘要，明确不能授权 patch 或 restore，不包含 sector 字节，也不会放宽身份 allowlist。应保留该文件，不要为了重复采集同一身份而再次运行 probe。
 
 ### 1.5 Patch：每次运行只执行一个安全阶段
 

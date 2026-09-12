@@ -46,6 +46,11 @@ class ArtifactLayout:
     return self.root / "failures" / "last-probe-failure.json"
 
   @property
+  def probe_identity_failure_report(self) -> Path:
+    """Fixed non-trusted diagnostic retained after an identity rejection."""
+    return self.root / "failures" / "last-probe-identity-mismatch.json"
+
+  @property
   def patch_root(self) -> Path:
     return self.root / "patch"
 
