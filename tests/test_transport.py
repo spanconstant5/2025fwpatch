@@ -198,6 +198,27 @@ def test_read_bootloader_identity_propagates_uds_negative_response():
   assert not any(call[0] == "session" for call in uds.calls)
 
 
+def test_read_full_identity_always_enters_programming_session():
+  """read_full_identity enters programming regardless of application F181."""
+  from eps_patch.transport import EcuTransport
+
+  application_2025 = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
+  boot_bytes = b"\x02" + b"8965H0000000" + bytes(4) + b"8A0000000000" + bytes(4)
+  with EcuTransport(bindings=fake_bindings([])) as transport:
+    uds = FakeUds.instances[-1]
+    reads = iter([application_2025, boot_bytes])
+    uds.read_data_by_identifier = lambda _did: next(reads)
+    identity = transport.read_full_identity()
+
+  assert identity.application_software_id == application_2025
+  assert identity.boot_software_id == boot_bytes
+  assert identity.part_number == b""
+  assert identity.panda_serial == "PANDA-DEFAULT"
+  # Programming session must be entered even though application differs from runtime target.
+  sessions = [call[1] for call in uds.calls if call[0] == "session"]
+  assert sessions == [1, 3, 2, 1, 3]
+
+
 def test_transport_uploads_only_hash_checked_envelope_with_private_download():
   from eps_patch.transport import EcuTransport
 

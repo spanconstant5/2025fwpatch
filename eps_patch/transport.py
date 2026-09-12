@@ -162,6 +162,29 @@ class EcuTransport:
       panda_serial=panda_serial,
     )
 
+  def read_full_identity(self) -> EcuIdentity:
+    """Read application and boot F181 unconditionally, always entering programming mode.
+
+    Entering and exiting the programming session causes the FRC/DRCC ignition-cycle
+    fault reported for this vehicle (Discord, 2026-09-10).  Run this only on a bench
+    with a planned power cycle, never during normal driving prep.
+    """
+    bindings, panda, uds = self._require_open()
+    application = bytes(uds.read_data_by_identifier(bindings.did_application))
+    panda_serial = str(panda.get_usb_serial())
+    self._switch_session(uds, bindings.session_default, 0.5)
+    self._switch_session(uds, bindings.session_extended, 0.7)
+    self._switch_session(uds, bindings.session_programming, 1.0)
+    self._switch_session(uds, bindings.session_default, 0.5)
+    self._switch_session(uds, bindings.session_extended, 0.7)
+    boot = bytes(uds.read_data_by_identifier(bindings.did_application))
+    return EcuIdentity(
+      part_number=b"",
+      boot_software_id=boot,
+      application_software_id=application,
+      panda_serial=panda_serial,
+    )
+
   def read_bootloader_identity(self) -> BootloaderIdentity:
     """Read F181 directly in the current bootloader session without transitions."""
     bindings, panda, uds = self._require_open()

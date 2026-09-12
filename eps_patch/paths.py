@@ -51,6 +51,11 @@ class ArtifactLayout:
     return self.root / "failures" / "last-probe-identity-mismatch.json"
 
   @property
+  def identity_capture_report(self) -> Path:
+    """Fixed non-trusted diagnostic written by the identify command."""
+    return self.root / "failures" / "last-identity-capture.json"
+
+  @property
   def patch_root(self) -> Path:
     return self.root / "patch"
 

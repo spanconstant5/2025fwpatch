@@ -213,6 +213,38 @@ The report includes several machine-readable fields:
   not yet wire-captured"` (the runtime target still holds an unresolved
   placeholder until a live boot-session F181 read is captured and reviewed).
 
+### 1.4.1 identify: unconditional diagnostic F181 read
+
+`identify` reads both the application and boot F181 values unconditionally and
+writes a non-authorizing diagnostic.  It is the only way to capture the boot
+software identification when the probe would otherwise skip the programming
+session (because application F181 already differs from the runtime target).
+
+```bash
+python3.12 eps_patch.py identify
+```
+
+**Power-cycle warning**: entering the programming session causes the FRC/DRCC
+ignition-cycle fault reported for this vehicle (Discord, 2026-09-10).  Run
+`identify` only on a bench with a planned power cycle, never during normal
+driving prep.
+
+The command always calls preflight (stops openpilot/pandad), then transitions
+default → extended → programming, reads boot F181, and returns to extended
+before closing the transport.  On completion it atomically writes:
+
+```text
+/data/eps-patch/artifacts/failures/last-identity-capture.json
+```
+
+That file records the observed application and boot F181 hex values, Panda
+serial, UTC timestamp, and the same `recognition` field described in §1.4.  It
+explicitly sets `"authorizes_patch_or_restore": false` and contains no sector
+bytes.  Running `identify` again overwrites the previous capture.
+
+The `identify` command does not create or modify the trusted probe directory.
+It cannot authorize patch or restore.
+
 ### 1.5 Patch: one safe stage per invocation
 
 Start or resume patch with the same command every time:
@@ -727,6 +759,26 @@ Probe 绝不擦除或写入 Flash。它执行一次综合只读证据流程，�
 - `recognition` — 值为 `"known-2025-corolla-specimen"` 表示观察到的 application software identity 与 Span 2025 Corolla CodeFlash 采集文件重建出的 F181 匹配。运行时 allowlist 仍会拒绝该身份；recognition 是离线诊断标签，不是授权。值为 `"unrecognized"` 则表示观察到的 application identity 与任何已知离线标本均不符。
 - `mismatched_fields` — 与目标不符的具体字段名列表（`part_number`、`application_software_id`、`boot_software_id`、`panda_serial`），无需手动对比十六进制即可准确定位失败原因。
 - `boot_software_id_note`（仅在 boot F181 不匹配时出现）— `"not-read: application F181 mismatch caused programming-session skip"` 表示 application 已失败，为避免该车型已知的 FRC/DRCC ignition-cycle 故障而跳过了编程会话，boot F181 未被读取；`"expected-is-placeholder: 2025 boot F181 not yet wire-captured"` 表示运行时目标仍使用占位符，需通过实车 boot 会话读取并审查后才能填入真实值。
+
+### 1.4.1 identify：无条件诊断 F181 读取
+
+当 probe 因 application F181 不匹配而跳过编程会话时，`identify` 是唯一能捕获 boot software identification 的途径。它无条件读取 application 与 boot F181，并写入一个不可授权的诊断文件。
+
+```bash
+python3.12 eps_patch.py identify
+```
+
+**断电警告**：进入编程会话会触发该车型已知的 FRC/DRCC ignition-cycle 故障（Discord，2026-09-10）。仅在台架测试环境下运行 `identify`，且需事先规划好断电重启；严禁在行车准备阶段使用。
+
+该命令先执行 preflight（停止 openpilot/pandad），然后按顺序切换会话：default → extended → programming，读取 boot F181，再返回 extended，最后关闭 transport。完成后原子写入：
+
+```text
+/data/eps-patch/artifacts/failures/last-identity-capture.json
+```
+
+该文件记录观察到的 application 与 boot F181 十六进制值、Panda serial、UTC 时间戳，以及与 §1.4 相同的 `recognition` 字段。它明确设置 `"authorizes_patch_or_restore": false`，不包含扇区字节。再次运行 `identify` 会覆盖上次的捕获。
+
+`identify` 命令不会创建或修改可信 probe 目录，也不能授权 patch 或 restore。
 
 ### 1.5 Patch：每次运行只执行一个安全阶段
 

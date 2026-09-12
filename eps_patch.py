@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 from eps_patch.artifacts import ArtifactError
 from eps_patch.evidence import EvidenceError
+from eps_patch.identify import IdentifyError, run_identify
 from eps_patch.patch import PatchError, run_patch
 from eps_patch.paths import ArtifactLayout, DEFAULT_ARTIFACT_ROOT
 from eps_patch.payload import PayloadError, build_envelope, load_built_shellcode
@@ -43,6 +44,7 @@ _EXPECTED_ERRORS = (
   CliError,
   ArtifactError,
   EvidenceError,
+  IdentifyError,
   PreflightError,
   PayloadError,
   TransportError,
@@ -106,7 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
   """Build the intentionally narrow public command surface."""
   parser = argparse.ArgumentParser(description=__doc__)
   commands = parser.add_subparsers(dest="command", required=True)
-  for name in ("probe", "patch", "restore"):
+  for name in ("probe", "patch", "restore", "identify"):
     command = commands.add_parser(name)
     command.add_argument("--serial")
   return parser
@@ -150,6 +152,12 @@ def dispatch(
 ) -> Path:
   """Dispatch one public command with fixed evidence and reviewed inputs."""
   command = getattr(args, "command", None)
+  if command == "identify":
+    return run_identify(
+      layout=layout,
+      preflight=preflight,
+      transport_factory=transport_factory,
+    )
   if command == "probe":
     return run_probe(
       layout=layout,
