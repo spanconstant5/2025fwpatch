@@ -33,11 +33,11 @@ def _command_action(parser):
   return next(action for action in parser._actions if action.dest == "command")
 
 
-def test_cli_exposes_exactly_three_commands(cli_module):
+def test_cli_exposes_exactly_four_commands(cli_module):
   """Adding any legacy phase command must not expand the public surface."""
   parser = cli_module.build_parser()
 
-  assert set(_command_action(parser).choices) == {"probe", "patch", "restore"}
+  assert set(_command_action(parser).choices) == {"probe", "patch", "restore", "identify"}
 
 
 def test_cli_loads_only_retained_runtime_payloads(cli_module, monkeypatch):
