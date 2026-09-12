@@ -232,6 +232,9 @@ def _identity_recognition(identity: EcuIdentity) -> str:
   return "unrecognized"
 
 
+_BOOT_F181_PLACEHOLDER = b"\x02" + (b"!" * 32)
+
+
 def _record_identity_mismatch(
   layout: ArtifactLayout,
   identity: EcuIdentity,
@@ -239,7 +242,24 @@ def _record_identity_mismatch(
   target: TargetManifest,
 ) -> Path:
   """Retain observed F181 values without creating trusted probe evidence."""
-  report = {
+  mismatched: list[str] = []
+  if identity.part_number != target.part_number:
+    mismatched.append("part_number")
+  if identity.application_software_id != target.application_software_id:
+    mismatched.append("application_software_id")
+  if identity.boot_software_id != target.boot_software_id:
+    mismatched.append("boot_software_id")
+  if not identity.panda_serial:
+    mismatched.append("panda_serial")
+
+  boot_note: str | None = None
+  if "boot_software_id" in mismatched:
+    if identity.boot_software_id == b"":
+      boot_note = "not-read: application F181 mismatch caused programming-session skip"
+    elif target.boot_software_id == _BOOT_F181_PLACEHOLDER:
+      boot_note = "expected-is-placeholder: 2025 boot F181 not yet wire-captured"
+
+  report: dict[str, object] = {
     "schema": 1,
     "workflow": "probe-identity-check",
     "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -247,6 +267,7 @@ def _record_identity_mismatch(
     "reason": "identity-mismatch",
     "authorizes_patch_or_restore": False,
     "recognition": _identity_recognition(identity),
+    "mismatched_fields": mismatched,
     "observed": _identity_record(identity),
     "expected": {
       "part_number": target.part_number.decode("ascii", errors="strict"),
@@ -255,6 +276,8 @@ def _record_identity_mismatch(
     },
     "payload": {"name": payload.name, "sha256": payload.sha256},
   }
+  if boot_note is not None:
+    report["boot_software_id_note"] = boot_note
   content = json.dumps(report, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
   _atomic_replace(layout.probe_identity_failure_report, content)
   return layout.probe_identity_failure_report

@@ -131,16 +131,32 @@ class EcuTransport:
   def read_identity(self) -> EcuIdentity:
     bindings, panda, uds = self._require_open()
     application = bytes(uds.read_data_by_identifier(bindings.did_application))
+    panda_serial = str(panda.get_usb_serial())
+
+    if application != TARGET.application_software_id:
+      # Application F181 already differs from the runtime allowlist.  Skip
+      # the programming-session transition: entering and relaunching the
+      # application session is reported (Discord, 2026-09-10) to leave FRC
+      # unhappy for the ignition cycle, faulting DRCC/TSS longitudinal.
+      # Boot F181 is left unread; the identity mismatch is detected before
+      # any payload is run.
+      return EcuIdentity(
+        part_number=b"",
+        boot_software_id=b"",
+        application_software_id=application,
+        panda_serial=panda_serial,
+      )
+
+    # Application matches the runtime allowlist.  Enter the programming
+    # session to read the boot F181.
     self._switch_session(uds, bindings.session_default, 0.5)
     self._switch_session(uds, bindings.session_extended, 0.7)
     self._switch_session(uds, bindings.session_programming, 1.0)
     self._switch_session(uds, bindings.session_default, 0.5)
     self._switch_session(uds, bindings.session_extended, 0.7)
     boot = bytes(uds.read_data_by_identifier(bindings.did_application))
-    part_number = TARGET.part_number if application == TARGET.application_software_id else b""
-    panda_serial = str(panda.get_usb_serial())
     return EcuIdentity(
-      part_number=part_number,
+      part_number=TARGET.part_number,
       boot_software_id=boot,
       application_software_id=application,
       panda_serial=panda_serial,

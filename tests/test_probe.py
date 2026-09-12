@@ -273,10 +273,14 @@ def test_identity_mismatch_records_observed_values_without_running_payload(probe
   # created_at is dynamic — pop and check it is a well-formed UTC ISO-8601 timestamp.
   created_at = report.pop("created_at")
   assert isinstance(created_at, str) and created_at.endswith("+00:00")
+  # part_number and application_software_id fail; boot matches the fixture identity
+  # (target.boot_software_id == identity.boot_software_id in the fixture), so boot
+  # is not in mismatched_fields and boot_software_id_note is absent.
   assert report == {
     "schema": 1,
     "authorizes_patch_or_restore": False,
     "recognition": "known-2025-corolla-specimen",
+    "mismatched_fields": ["part_number", "application_software_id"],
     "expected": {
       "application_software_id": target.application_software_id.hex(),
       "boot_software_id": target.boot_software_id.hex(),
@@ -333,8 +337,38 @@ def test_identity_mismatch_with_unknown_application_reports_unrecognized(probe_c
   assert report["recognition"] == "unrecognized"
   assert report["authorizes_patch_or_restore"] is False
   assert report["observed"]["application_software_id"] == unknown_application.hex()
+  assert report["mismatched_fields"] == ["application_software_id"]
   created_at = report["created_at"]
   assert isinstance(created_at, str) and created_at.endswith("+00:00")
+
+
+def test_identity_mismatch_boot_placeholder_note_when_only_boot_fails(probe_case):
+  """When application matches but boot differs, the report names the placeholder."""
+  from eps_patch.probe import ProbeError, run_probe
+
+  layout, target, payload, identity, result = probe_case
+  real_boot = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
+  identity = replace(identity, boot_software_id=real_boot)
+  transport = FakeTransport(identity, result)
+
+  with pytest.raises(ProbeError, match="ECU identity does not exactly match the target"):
+    run_probe(
+      layout=layout,
+      payload=payload,
+      preflight=lambda: None,
+      transport_factory=lambda: transport,
+      target=target,
+      new_uds=False,
+    )
+
+  assert transport.operations == []
+  report = json.loads(layout.probe_identity_failure_report.read_text(encoding="utf-8"))
+  assert report["mismatched_fields"] == ["boot_software_id"]
+  assert report["boot_software_id_note"] == (
+    "expected-is-placeholder: 2025 boot F181 not yet wire-captured"
+  )
+  assert report["authorizes_patch_or_restore"] is False
+  assert "boot_software_id_note" not in report.get("observed", {})
 
 
 def test_malformed_probe_result_does_not_write_failure_diagnostic(probe_case):
