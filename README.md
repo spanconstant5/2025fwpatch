@@ -193,12 +193,25 @@ payload digest. It explicitly cannot authorize patch or restore, contains no
 sector bytes, and does not weaken the identity allowlist. Preserve it rather
 than rerunning the probe to collect the same identity.
 
-The report includes a machine-readable `recognition` field. A value of
-`"known-2025-corolla-specimen"` means the observed application software identity
-matches the F181 reconstructed from the Span 2025 Corolla CodeFlash acquisition.
-The runtime allowlist still rejects this identity; recognition is an offline
-diagnostic label, not an authorization. A value of `"unrecognized"` means the
-observed application identity does not match any known offline specimen.
+The report includes several machine-readable fields:
+
+- `recognition` — `"known-2025-corolla-specimen"` when the observed application
+  software identity matches the F181 reconstructed from the Span 2025 Corolla
+  CodeFlash acquisition. The runtime allowlist still rejects this identity;
+  recognition is an offline diagnostic label, not an authorization.
+  `"unrecognized"` means the observed application identity does not match any
+  known offline specimen.
+- `mismatched_fields` — list of the specific field names that differed from the
+  target (`part_number`, `application_software_id`, `boot_software_id`,
+  `panda_serial`). Tells you exactly which check failed without requiring manual
+  hex comparison.
+- `boot_software_id_note` (present only when boot F181 mismatched) — either
+  `"not-read: application F181 mismatch caused programming-session skip"` (the
+  boot F181 was not read because application already failed; the probe avoids
+  entering programming mode unnecessarily to prevent the FRC/DRCC ignition-cycle
+  fault reported for this vehicle) or `"expected-is-placeholder: 2025 boot F181
+  not yet wire-captured"` (the runtime target still holds an unresolved
+  placeholder until a live boot-session F181 read is captured and reviewed).
 
 ### 1.5 Patch: one safe stage per invocation
 
@@ -709,7 +722,11 @@ Probe 绝不擦除或写入 Flash。它执行一次综合只读证据流程，�
 
 该文件记录实际与预期 F181、Panda serial 和已审查 payload 摘要，明确不能授权 patch 或 restore，不包含 sector 字节，也不会放宽身份 allowlist。应保留该文件，不要为了重复采集同一身份而再次运行 probe。
 
-报告包含一个机器可读的 `recognition` 字段。值为 `"known-2025-corolla-specimen"` 表示观察到的 application software identity 与 Span 2025 Corolla CodeFlash 采集文件重建出的 F181 匹配。运行时 allowlist 仍会拒绝该身份；recognition 是离线诊断标签，不是授权。值为 `"unrecognized"` 则表示观察到的 application identity 与任何已知离线标本均不符。
+报告包含以下机器可读字段：
+
+- `recognition` — 值为 `"known-2025-corolla-specimen"` 表示观察到的 application software identity 与 Span 2025 Corolla CodeFlash 采集文件重建出的 F181 匹配。运行时 allowlist 仍会拒绝该身份；recognition 是离线诊断标签，不是授权。值为 `"unrecognized"` 则表示观察到的 application identity 与任何已知离线标本均不符。
+- `mismatched_fields` — 与目标不符的具体字段名列表（`part_number`、`application_software_id`、`boot_software_id`、`panda_serial`），无需手动对比十六进制即可准确定位失败原因。
+- `boot_software_id_note`（仅在 boot F181 不匹配时出现）— `"not-read: application F181 mismatch caused programming-session skip"` 表示 application 已失败，为避免该车型已知的 FRC/DRCC ignition-cycle 故障而跳过了编程会话，boot F181 未被读取；`"expected-is-placeholder: 2025 boot F181 not yet wire-captured"` 表示运行时目标仍使用占位符，需通过实车 boot 会话读取并审查后才能填入真实值。
 
 ### 1.5 Patch：每次运行只执行一个安全阶段
 
