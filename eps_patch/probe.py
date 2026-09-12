@@ -220,6 +220,18 @@ def _failure_stream_diagnostic(
   }
 
 
+def _identity_recognition(identity: EcuIdentity) -> str:
+  """Return a machine-readable label for the observed application software identity.
+
+  Recognition only names what is known from offline firmware evidence.
+  It does not authorize patching or widen the runtime allowlist.
+  """
+  from .corolla_2025 import APPLICATION_F181
+  if identity.application_software_id == APPLICATION_F181:
+    return "known-2025-corolla-specimen"
+  return "unrecognized"
+
+
 def _record_identity_mismatch(
   layout: ArtifactLayout,
   identity: EcuIdentity,
@@ -228,10 +240,13 @@ def _record_identity_mismatch(
 ) -> Path:
   """Retain observed F181 values without creating trusted probe evidence."""
   report = {
+    "schema": 1,
     "workflow": "probe-identity-check",
+    "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
     "result": "REJECTED",
     "reason": "identity-mismatch",
     "authorizes_patch_or_restore": False,
+    "recognition": _identity_recognition(identity),
     "observed": _identity_record(identity),
     "expected": {
       "part_number": target.part_number.decode("ascii", errors="strict"),

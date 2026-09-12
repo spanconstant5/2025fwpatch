@@ -244,6 +244,7 @@ def test_identity_mismatch_records_observed_values_without_running_payload(probe
   from eps_patch.probe import ProbeError, run_probe
 
   layout, target, payload, identity, result = probe_case
+  # observed_application IS APPLICATION_F181 (2025 secondary) so recognition is known.
   observed_application = (
     b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
   )
@@ -269,8 +270,13 @@ def test_identity_mismatch_records_observed_values_without_running_payload(probe
 
   assert transport.operations == []
   report = json.loads(layout.probe_identity_failure_report.read_text(encoding="utf-8"))
+  # created_at is dynamic — pop and check it is a well-formed UTC ISO-8601 timestamp.
+  created_at = report.pop("created_at")
+  assert isinstance(created_at, str) and created_at.endswith("+00:00")
   assert report == {
+    "schema": 1,
     "authorizes_patch_or_restore": False,
+    "recognition": "known-2025-corolla-specimen",
     "expected": {
       "application_software_id": target.application_software_id.hex(),
       "boot_software_id": target.boot_software_id.hex(),
@@ -292,6 +298,43 @@ def test_identity_mismatch_records_observed_values_without_running_payload(probe
   }
   assert not layout.probe_directory.exists()
   assert not layout.probe_failure_report.exists()
+
+
+def test_identity_mismatch_with_unknown_application_reports_unrecognized(probe_case):
+  """An application ID not matching any known offline specimen reports 'unrecognized'."""
+  from eps_patch.probe import ProbeError, run_probe
+
+  layout, target, payload, identity, result = probe_case
+  # Construct an application_software_id that matches neither the runtime allowlist
+  # (TARGET.application_software_id, 2023 secondary) nor the known offline 2025
+  # specimen (APPLICATION_F181, 8A3111213000).  Use a plausible but invented secondary.
+  unknown_application = (
+    b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111199000" + bytes(4)
+  )
+  identity = replace(identity, application_software_id=unknown_application)
+  transport = FakeTransport(identity, result)
+
+  with pytest.raises(
+    ProbeError,
+    match=r"ECU identity does not exactly match the target.*last-probe-identity-mismatch\.json",
+  ):
+    run_probe(
+      layout=layout,
+      payload=payload,
+      preflight=lambda: None,
+      transport_factory=lambda: transport,
+      target=target,
+      new_uds=False,
+    )
+
+  assert transport.operations == []
+  report = json.loads(layout.probe_identity_failure_report.read_text(encoding="utf-8"))
+  assert report["schema"] == 1
+  assert report["recognition"] == "unrecognized"
+  assert report["authorizes_patch_or_restore"] is False
+  assert report["observed"]["application_software_id"] == unknown_application.hex()
+  created_at = report["created_at"]
+  assert isinstance(created_at, str) and created_at.endswith("+00:00")
 
 
 def test_malformed_probe_result_does_not_write_failure_diagnostic(probe_case):

@@ -193,6 +193,13 @@ payload digest. It explicitly cannot authorize patch or restore, contains no
 sector bytes, and does not weaken the identity allowlist. Preserve it rather
 than rerunning the probe to collect the same identity.
 
+The report includes a machine-readable `recognition` field. A value of
+`"known-2025-corolla-specimen"` means the observed application software identity
+matches the F181 reconstructed from the Span 2025 Corolla CodeFlash acquisition.
+The runtime allowlist still rejects this identity; recognition is an offline
+diagnostic label, not an authorization. A value of `"unrecognized"` means the
+observed application identity does not match any known offline specimen.
+
 ### 1.5 Patch: one safe stage per invocation
 
 Start or resume patch with the same command every time:
@@ -701,6 +708,8 @@ Probe 绝不擦除或写入 Flash。它执行一次综合只读证据流程，�
 ```
 
 该文件记录实际与预期 F181、Panda serial 和已审查 payload 摘要，明确不能授权 patch 或 restore，不包含 sector 字节，也不会放宽身份 allowlist。应保留该文件，不要为了重复采集同一身份而再次运行 probe。
+
+报告包含一个机器可读的 `recognition` 字段。值为 `"known-2025-corolla-specimen"` 表示观察到的 application software identity 与 Span 2025 Corolla CodeFlash 采集文件重建出的 F181 匹配。运行时 allowlist 仍会拒绝该身份；recognition 是离线诊断标签，不是授权。值为 `"unrecognized"` 则表示观察到的 application identity 与任何已知离线标本均不符。
 
 ### 1.5 Patch：每次运行只执行一个安全阶段
 
