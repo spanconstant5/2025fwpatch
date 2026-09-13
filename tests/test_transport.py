@@ -223,11 +223,31 @@ def test_read_full_identity_always_enters_programming_session():
   assert result.f181_default_session == f181_default
   assert result.f180_programming_session == f180_prog
   assert result.f181_programming_session == f181_prog
-  # First read is in default session (before any transition); next two are in programming.
   assert read_dids == [0xF181, 0xF180, 0xF181]
-  # Programming session must be entered regardless of application F181 content.
   sessions = [call[1] for call in uds.calls if call[0] == "session"]
-  assert 2 in sessions  # programming session (session type 2) was entered
+  assert 2 in sessions
+
+
+def test_read_full_identity_f180_nrc_still_captures_f181():
+  """0xF180 NRC does not abort the capture — 0xF181 in programming is still read."""
+  from eps_patch.transport import EcuTransport, IdentityCaptureResult
+
+  f181_default = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
+  f181_prog = b"\x02" + b"BOOT00000000" + bytes(4) + b"BOOT00000000" + bytes(4)
+
+  def fake_read(did):
+    if did == 0xF180:
+      raise RuntimeError("NRC 0x31")
+    return f181_default if ("session", 2) not in uds.calls else f181_prog
+
+  with EcuTransport(bindings=fake_bindings([])) as transport:
+    uds = FakeUds.instances[-1]
+    uds.read_data_by_identifier = fake_read
+    result = transport.read_full_identity()
+
+  assert isinstance(result, IdentityCaptureResult)
+  assert result.f180_programming_session is None
+  assert result.f181_programming_session == f181_prog
 
 
 def test_transport_uploads_only_hash_checked_envelope_with_private_download():

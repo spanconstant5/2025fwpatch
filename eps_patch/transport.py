@@ -54,9 +54,9 @@ class BootloaderIdentity:
 class IdentityCaptureResult:
   """All DID reads collected by the identify command across every relevant session."""
   panda_serial: str
-  f181_default_session: bytes         # 0xF181 read before any session change
-  f180_programming_session: bytes     # 0xF180 (Boot Software Identification) in programming
-  f181_programming_session: bytes     # 0xF181 (Application Software Identification) in programming
+  f181_default_session: bytes              # 0xF181 read before any session change
+  f180_programming_session: bytes | None  # 0xF180 in programming; None if ECU returned NRC
+  f181_programming_session: bytes          # 0xF181 in programming
 
 
 def load_openpilot_bindings() -> SimpleNamespace:
@@ -190,9 +190,14 @@ class EcuTransport:
     self._switch_session(uds, bindings.session_extended, 0.7)
     self._switch_session(uds, bindings.session_programming, 1.0)
 
-    # Read both DIDs while still in programming mode, before any return transition.
-    # 0xF180 = Boot Software Identification; 0xF181 = Application Software Identification.
-    f180_prog = bytes(uds.read_data_by_identifier(0xF180))
+    # Attempt 0xF180 (Boot Software Identification) while in programming.
+    # ECU may return NRC if not supported; capture the result either way.
+    try:
+      f180_prog: bytes | None = bytes(uds.read_data_by_identifier(0xF180))
+    except Exception:
+      f180_prog = None
+
+    # Always read 0xF181 while still in programming mode before any return transition.
     f181_prog = bytes(uds.read_data_by_identifier(bindings.did_application))
 
     # Best-effort return to default; FRC fault may have already killed the session.

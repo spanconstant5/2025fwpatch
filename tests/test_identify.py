@@ -17,7 +17,7 @@ _PANDA_SERIAL = "PANDA-IDENTIFY-TEST"
 def _capture(
   *,
   f181_default=_APP_F181,
-  f180_prog=_BOOT_F180,
+  f180_prog: bytes | None = _BOOT_F180,
   f181_prog=_APP_F181_IN_PROG,
   serial=_PANDA_SERIAL,
 ) -> IdentityCaptureResult:
@@ -84,6 +84,18 @@ def test_identify_report_all_captured_fields(tmp_path):
   assert report["panda_serial"] == _PANDA_SERIAL
   assert report["f181_default_session"] == _APP_F181.hex()
   assert report["f180_programming_session"] == _BOOT_F180.hex()
+  assert report["f181_programming_session"] == _APP_F181_IN_PROG.hex()
+
+
+def test_identify_report_f180_nrc_recorded_as_string(tmp_path):
+  layout = _layout(tmp_path)
+  run_identify(
+    layout=layout,
+    preflight=lambda: None,
+    transport_factory=lambda: _FakeTransport(_capture(f180_prog=None)),
+  )
+  report = json.loads(layout.identity_capture_report.read_bytes())
+  assert report["f180_programming_session"] == "nrc-not-supported"
   assert report["f181_programming_session"] == _APP_F181_IN_PROG.hex()
 
 

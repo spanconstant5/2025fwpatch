@@ -65,11 +65,15 @@ def run_identify(
     "recognition": _recognition(result.f181_default_session),
     "panda_serial": result.panda_serial,
     "f181_default_session": result.f181_default_session.hex(),
-    "f180_programming_session": result.f180_programming_session.hex(),
+    "f180_programming_session": (
+      result.f180_programming_session.hex()
+      if result.f180_programming_session is not None
+      else "nrc-not-supported"
+    ),
     "f181_programming_session": result.f181_programming_session.hex(),
     "did_notes": {
-      "0xF180": "Boot Software Identification — read in programming session",
-      "0xF181": "Application Software Identification — read in both sessions",
+      "0xF180": "Boot Software Identification — read in programming session; null if ECU returned NRC",
+      "0xF181": "Application Software Identification — read in default and programming sessions",
     },
   }
   content = json.dumps(report, sort_keys=True, separators=(",", ":")).encode("utf-8") + b"\n"
