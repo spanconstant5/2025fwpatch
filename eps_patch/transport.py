@@ -50,6 +50,15 @@ class BootloaderIdentity:
   panda_serial: str
 
 
+@dataclass(frozen=True, slots=True)
+class IdentityCaptureResult:
+  """All DID reads collected by the identify command across every relevant session."""
+  panda_serial: str
+  f181_default_session: bytes         # 0xF181 read before any session change
+  f180_programming_session: bytes     # 0xF180 (Boot Software Identification) in programming
+  f181_programming_session: bytes     # 0xF181 (Application Software Identification) in programming
+
+
 def load_openpilot_bindings() -> SimpleNamespace:
   from panda import Panda
   from opendbc.car.isotp import isotp_send
@@ -162,27 +171,41 @@ class EcuTransport:
       panda_serial=panda_serial,
     )
 
-  def read_full_identity(self) -> EcuIdentity:
-    """Read application and boot F181 unconditionally, always entering programming mode.
+  def read_full_identity(self) -> IdentityCaptureResult:
+    """Read 0xF181 in the default session then 0xF180 and 0xF181 in the programming session.
 
-    Entering and exiting the programming session causes the FRC/DRCC ignition-cycle
-    fault reported for this vehicle (Discord, 2026-09-10).  Run this only on a bench
-    with a planned power cycle, never during normal driving prep.
+    All three reads happen before any return transition so we capture the ECU state
+    while it is actually in programming mode.  Entering programming causes the
+    FRC/DRCC ignition-cycle fault (Discord, 2026-09-10) — bench with planned power
+    cycle only.
     """
     bindings, panda, uds = self._require_open()
-    application = bytes(uds.read_data_by_identifier(bindings.did_application))
     panda_serial = str(panda.get_usb_serial())
+
+    # Capture F181 in the default session before touching anything.
+    f181_default = bytes(uds.read_data_by_identifier(bindings.did_application))
+
+    # Enter programming session.
     self._switch_session(uds, bindings.session_default, 0.5)
     self._switch_session(uds, bindings.session_extended, 0.7)
     self._switch_session(uds, bindings.session_programming, 1.0)
-    self._switch_session(uds, bindings.session_default, 0.5)
-    self._switch_session(uds, bindings.session_extended, 0.7)
-    boot = bytes(uds.read_data_by_identifier(bindings.did_application))
-    return EcuIdentity(
-      part_number=b"",
-      boot_software_id=boot,
-      application_software_id=application,
+
+    # Read both DIDs while still in programming mode, before any return transition.
+    # 0xF180 = Boot Software Identification; 0xF181 = Application Software Identification.
+    f180_prog = bytes(uds.read_data_by_identifier(0xF180))
+    f181_prog = bytes(uds.read_data_by_identifier(bindings.did_application))
+
+    # Best-effort return to default; FRC fault may have already killed the session.
+    try:
+      self._switch_session(uds, bindings.session_default, 0.5)
+    except Exception:
+      pass
+
+    return IdentityCaptureResult(
       panda_serial=panda_serial,
+      f181_default_session=f181_default,
+      f180_programming_session=f180_prog,
+      f181_programming_session=f181_prog,
     )
 
   def read_bootloader_identity(self) -> BootloaderIdentity:

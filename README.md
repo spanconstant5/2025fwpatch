@@ -227,20 +227,28 @@ python3.12 eps_patch.py identify
 **Power-cycle warning**: entering the programming session causes the FRC/DRCC
 ignition-cycle fault reported for this vehicle (Discord, 2026-09-10).  Run
 `identify` only on a bench with a planned power cycle, never during normal
-driving prep.
+driving prep.  Power-cycle before running any other command afterward.
 
-The command always calls preflight (stops openpilot/pandad), then transitions
-default → extended → programming, reads boot F181, and returns to extended
-before closing the transport.  On completion it atomically writes:
+The command calls preflight (stops openpilot/pandad), then:
+
+1. Reads DID `0xF181` (Application Software Identification) in the default session.
+2. Transitions default → extended → programming.
+3. Reads DID `0xF180` (Boot Software Identification) **while still in programming mode**.
+4. Reads DID `0xF181` **while still in programming mode** (for comparison).
+5. Returns to default and closes the transport.
+
+All three reads happen before any return session transition so they capture
+the ECU state while it is actually in programming mode.  On completion the
+command atomically writes:
 
 ```text
 /data/eps-patch/artifacts/failures/last-identity-capture.json
 ```
 
-That file records the observed application and boot F181 hex values, Panda
-serial, UTC timestamp, and the same `recognition` field described in §1.4.  It
-explicitly sets `"authorizes_patch_or_restore": false` and contains no sector
-bytes.  Running `identify` again overwrites the previous capture.
+That file records all three captured DID values as hex strings, the Panda
+serial, UTC timestamp, and the same `recognition` field described in §1.4.
+It explicitly sets `"authorizes_patch_or_restore": false` and contains no
+sector bytes.  Running `identify` again overwrites the previous capture.
 
 The `identify` command does not create or modify the trusted probe directory.
 It cannot authorize patch or restore.
@@ -768,9 +776,17 @@ Probe 绝不擦除或写入 Flash。它执行一次综合只读证据流程，�
 python3.12 eps_patch.py identify
 ```
 
-**断电警告**：进入编程会话会触发该车型已知的 FRC/DRCC ignition-cycle 故障（Discord，2026-09-10）。仅在台架测试环境下运行 `identify`，且需事先规划好断电重启；严禁在行车准备阶段使用。
+**断电警告**：进入编程会话会触发该车型已知的 FRC/DRCC ignition-cycle 故障（Discord，2026-09-10）。仅在台架测试环境下运行 `identify`，且需事先规划好断电重启；严禁在行车准备阶段使用。运行完成后，运行任何其他命令之前必须断电重启。
 
-该命令先执行 preflight（停止 openpilot/pandad），然后按顺序切换会话：default → extended → programming，读取 boot F181，再返回 extended，最后关闭 transport。完成后原子写入：
+该命令先执行 preflight（停止 openpilot/pandad），然后：
+
+1. 在 default 会话中读取 DID `0xF181`（应用软件标识）。
+2. 切换会话：default → extended → programming。
+3. **在 programming 会话中**读取 DID `0xF180`（Boot Software Identification）。
+4. **在 programming 会话中**读取 DID `0xF181`（用于对比）。
+5. 返回 default 并关闭 transport。
+
+全部三次读取均在返回会话切换之前完成，确保捕获 ECU 实际处于编程模式时的状态。完成后原子写入：
 
 ```text
 /data/eps-patch/artifacts/failures/last-identity-capture.json

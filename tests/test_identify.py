@@ -5,20 +5,34 @@ import pytest
 
 from eps_patch.identify import IdentifyError, run_identify
 from eps_patch.paths import ArtifactLayout
-from eps_patch.transport import EcuIdentity
+from eps_patch.transport import IdentityCaptureResult
 
 
 _APP_F181 = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
-_BOOT_F181 = b"\x02" + b"8965H0000000" + bytes(4) + b"8A0000000000" + bytes(4)
+_BOOT_F180 = b"\x02" + b"8965H0000000" + bytes(4) + b"8A0000000000" + bytes(4)
+_APP_F181_IN_PROG = b"\x02" + b"PROG00000000" + bytes(4) + b"PROG00000000" + bytes(4)
 _PANDA_SERIAL = "PANDA-IDENTIFY-TEST"
 
 
+def _capture(
+  *,
+  f181_default=_APP_F181,
+  f180_prog=_BOOT_F180,
+  f181_prog=_APP_F181_IN_PROG,
+  serial=_PANDA_SERIAL,
+) -> IdentityCaptureResult:
+  return IdentityCaptureResult(
+    panda_serial=serial,
+    f181_default_session=f181_default,
+    f180_programming_session=f180_prog,
+    f181_programming_session=f181_prog,
+  )
+
+
 class _FakeTransport:
-  def __init__(self, *, application=_APP_F181, boot=_BOOT_F181, serial=_PANDA_SERIAL):
-    self._application = application
-    self._boot = boot
-    self._serial = serial
-    self.read_full_identity_called = False
+  def __init__(self, result: IdentityCaptureResult | None = None):
+    self._result = result or _capture()
+    self.called = False
 
   def __enter__(self):
     return self
@@ -26,14 +40,9 @@ class _FakeTransport:
   def __exit__(self, *_):
     pass
 
-  def read_full_identity(self) -> EcuIdentity:
-    self.read_full_identity_called = True
-    return EcuIdentity(
-      part_number=b"",
-      boot_software_id=self._boot,
-      application_software_id=self._application,
-      panda_serial=self._serial,
-    )
+  def read_full_identity(self) -> IdentityCaptureResult:
+    self.called = True
+    return self._result
 
 
 def _layout(tmp_path: Path) -> ArtifactLayout:
@@ -49,46 +58,33 @@ def test_identify_returns_identity_capture_report_path(tmp_path):
     transport_factory=lambda: transport,
   )
   assert result == layout.identity_capture_report
-  assert transport.read_full_identity_called
+  assert transport.called
 
 
-def test_identify_report_is_valid_json(tmp_path):
+def test_identify_report_schema_and_workflow(tmp_path):
   layout = _layout(tmp_path)
-  run_identify(
-    layout=layout,
-    preflight=lambda: None,
-    transport_factory=lambda: _FakeTransport(),
-  )
-  content = layout.identity_capture_report.read_bytes()
-  report = json.loads(content)
-  assert report["schema"] == 1
+  run_identify(layout=layout, preflight=lambda: None, transport_factory=lambda: _FakeTransport())
+  report = json.loads(layout.identity_capture_report.read_bytes())
+  assert report["schema"] == 2
   assert report["workflow"] == "identify"
   assert "created_at" in report
 
 
 def test_identify_report_never_authorizes(tmp_path):
   layout = _layout(tmp_path)
-  run_identify(
-    layout=layout,
-    preflight=lambda: None,
-    transport_factory=lambda: _FakeTransport(),
-  )
+  run_identify(layout=layout, preflight=lambda: None, transport_factory=lambda: _FakeTransport())
   report = json.loads(layout.identity_capture_report.read_bytes())
   assert report["authorizes_patch_or_restore"] is False
 
 
-def test_identify_report_observed_fields(tmp_path):
+def test_identify_report_all_captured_fields(tmp_path):
   layout = _layout(tmp_path)
-  run_identify(
-    layout=layout,
-    preflight=lambda: None,
-    transport_factory=lambda: _FakeTransport(),
-  )
+  run_identify(layout=layout, preflight=lambda: None, transport_factory=lambda: _FakeTransport())
   report = json.loads(layout.identity_capture_report.read_bytes())
-  observed = report["observed"]
-  assert observed["application_software_id"] == _APP_F181.hex()
-  assert observed["boot_software_id"] == _BOOT_F181.hex()
-  assert observed["panda_serial"] == _PANDA_SERIAL
+  assert report["panda_serial"] == _PANDA_SERIAL
+  assert report["f181_default_session"] == _APP_F181.hex()
+  assert report["f180_programming_session"] == _BOOT_F180.hex()
+  assert report["f181_programming_session"] == _APP_F181_IN_PROG.hex()
 
 
 def test_identify_report_known_specimen_recognition(tmp_path):
@@ -96,19 +92,19 @@ def test_identify_report_known_specimen_recognition(tmp_path):
   run_identify(
     layout=layout,
     preflight=lambda: None,
-    transport_factory=lambda: _FakeTransport(application=_APP_F181),
+    transport_factory=lambda: _FakeTransport(_capture(f181_default=_APP_F181)),
   )
   report = json.loads(layout.identity_capture_report.read_bytes())
   assert report["recognition"] == "known-2025-corolla-specimen"
 
 
-def test_identify_report_unrecognized_specimen(tmp_path):
+def test_identify_report_unrecognized_when_f181_default_differs(tmp_path):
   layout = _layout(tmp_path)
-  unknown_app = b"\x02" + b"0000F0000000" + bytes(4) + b"0000F0000000" + bytes(4)
+  unknown = b"\x02" + b"0000F0000000" + bytes(4) + b"0000F0000000" + bytes(4)
   run_identify(
     layout=layout,
     preflight=lambda: None,
-    transport_factory=lambda: _FakeTransport(application=unknown_app),
+    transport_factory=lambda: _FakeTransport(_capture(f181_default=unknown)),
   )
   report = json.loads(layout.identity_capture_report.read_bytes())
   assert report["recognition"] == "unrecognized"
@@ -120,9 +116,8 @@ def test_identify_overwrites_previous_capture(tmp_path):
     run_identify(
       layout=layout,
       preflight=lambda: None,
-      transport_factory=lambda: _FakeTransport(serial=f"PANDA-{i}"),
+      transport_factory=lambda: _FakeTransport(_capture(serial=f"PANDA-{i}")),
     )
-  # After two runs the file must still exist and be parseable; no crash.
   report = json.loads(layout.identity_capture_report.read_bytes())
   assert report["workflow"] == "identify"
 
@@ -138,7 +133,7 @@ def test_identify_calls_preflight(tmp_path):
   assert called == [True]
 
 
-def test_identify_rejects_bad_layout_type(tmp_path):
+def test_identify_rejects_bad_layout_type():
   with pytest.raises(TypeError, match="ArtifactLayout"):
     run_identify(
       layout=object(),  # type: ignore[arg-type]

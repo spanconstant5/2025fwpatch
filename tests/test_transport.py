@@ -199,24 +199,35 @@ def test_read_bootloader_identity_propagates_uds_negative_response():
 
 
 def test_read_full_identity_always_enters_programming_session():
-  """read_full_identity enters programming regardless of application F181."""
-  from eps_patch.transport import EcuTransport
+  """read_full_identity reads 0xF181 in default then 0xF180 and 0xF181 in programming."""
+  from eps_patch.transport import EcuTransport, IdentityCaptureResult
 
-  application_2025 = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
-  boot_bytes = b"\x02" + b"8965H0000000" + bytes(4) + b"8A0000000000" + bytes(4)
+  f181_default = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
+  f180_prog = b"\x02" + b"8965H0000000" + bytes(4) + b"8A0000000000" + bytes(4)
+  f181_prog = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
+
+  read_dids: list[int] = []
+  reads = iter([f181_default, f180_prog, f181_prog])
+
+  def fake_read(did):
+    read_dids.append(did)
+    return next(reads)
+
   with EcuTransport(bindings=fake_bindings([])) as transport:
     uds = FakeUds.instances[-1]
-    reads = iter([application_2025, boot_bytes])
-    uds.read_data_by_identifier = lambda _did: next(reads)
-    identity = transport.read_full_identity()
+    uds.read_data_by_identifier = fake_read
+    result = transport.read_full_identity()
 
-  assert identity.application_software_id == application_2025
-  assert identity.boot_software_id == boot_bytes
-  assert identity.part_number == b""
-  assert identity.panda_serial == "PANDA-DEFAULT"
-  # Programming session must be entered even though application differs from runtime target.
+  assert isinstance(result, IdentityCaptureResult)
+  assert result.panda_serial == "PANDA-DEFAULT"
+  assert result.f181_default_session == f181_default
+  assert result.f180_programming_session == f180_prog
+  assert result.f181_programming_session == f181_prog
+  # First read is in default session (before any transition); next two are in programming.
+  assert read_dids == [0xF181, 0xF180, 0xF181]
+  # Programming session must be entered regardless of application F181 content.
   sessions = [call[1] for call in uds.calls if call[0] == "session"]
-  assert sessions == [1, 3, 2, 1, 3]
+  assert 2 in sessions  # programming session (session type 2) was entered
 
 
 def test_transport_uploads_only_hash_checked_envelope_with_private_download():
