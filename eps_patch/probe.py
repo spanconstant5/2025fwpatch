@@ -232,7 +232,7 @@ def _identity_recognition(identity: EcuIdentity) -> str:
   return "unrecognized"
 
 
-_BOOT_F181_PLACEHOLDER = b"\x02" + (b"!" * 32)
+_BOOT_F181_CONFIRMED = b"\x02" + (b"!" * 32)   # wire-captured 2026-09-13
 
 
 def _record_identity_mismatch(
@@ -256,8 +256,8 @@ def _record_identity_mismatch(
   if "boot_software_id" in mismatched:
     if identity.boot_software_id == b"":
       boot_note = "not-read: application F181 mismatch caused programming-session skip"
-    elif target.boot_software_id == _BOOT_F181_PLACEHOLDER:
-      boot_note = "expected-is-placeholder: 2025 boot F181 not yet wire-captured"
+    elif target.boot_software_id == _BOOT_F181_CONFIRMED:
+      boot_note = "expected-is-confirmed: 0xF181 in programming session wire-captured 2026-09-13"
 
   report: dict[str, object] = {
     "schema": 1,

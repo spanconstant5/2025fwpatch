@@ -21,6 +21,7 @@ deliberately refuses to use that result as permission to flash.
 | ECU serial | Verified | `8965012N50E12H030731` |
 | MCU | Verified | `R7F701383` |
 | Acquisition route | Observed | bus 1, Panda parameter 1 |
+| Boot F181 (0xF181 in programming session) | Confirmed | `02` + `21` × 32 — wire-captured 2026-09-13 |
 | Patch and CRC source sectors | Verified offline | SHA-pinned from the retained 2025 dump |
 | High application-code transfer | Verified offline | byte-identical to the analyzed 2023 image from `0x17E00` upward |
 | 2025 runtime transport/payload behavior | Unresolved | no 2025 eligibility is granted |

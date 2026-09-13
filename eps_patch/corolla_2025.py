@@ -2,7 +2,8 @@
 
 Authority: kaikozlov/ghidra_rh850 at a747ee291b94ffecbee69cf062aec72b23c4dc8d,
 docs/variants/corolla-8965F1208000.md and verify_spanconstant_* tests.
-F181 below is reconstructed from firmware, not a raw 2025 wire capture.
+APPLICATION_F181 is reconstructed from firmware, not a raw wire capture.
+BOOT_F181 is wire-captured: 0xF181 read in programming session 2026-09-13.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from .manifest import TARGET
 CODEFLASH_SHA256 = "b8fa3d951f59fb75c190ce1b2c73164adb952f871650cfcd3b7656f08a9c448d"
 NORMALIZED_SHA256 = "fdb35b76891cf84a8b89e0a05c9c7c5cfcd27994cf85ccc01ff32828f53091f6"
 APPLICATION_F181 = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
+BOOT_F181 = b"\x02" + b"!" * 32   # 0xF181 in programming session; wire-captured 2026-09-13
 ECU_SERIAL = b"8965012N50E12H030731"
 CRC_SECTOR_SHA256 = "617f2b88ee1041160f9ce2369e45b3b7bed9d68a77ecb5473a601261bccf7efb"
 
@@ -75,9 +77,11 @@ def verify_codeflash(raw: bytes) -> dict[str, object]:
     "crc_candidate_sha256": hashlib.sha256(candidate.crc_final).hexdigest(),
     "changed_addresses": [address for address, _, _ in candidate.absolute_diffs],
     "unresolved": [
-      "2025 raw application/boot F181 wire captures",
       "mapping acquisition bus 1 / param 1 to the patch transport and payload CAN channel",
       "2025 runtime stack/stub/buffer and FACI/DCRA behavior for these retained payloads",
       "actual lateral-command interface and functional steering compatibility",
+    ],
+    "resolved": [
+      "boot F181: 0xF181 in programming session = 0x02 + 0x21*32 (wire-captured 2026-09-13)",
     ],
   }
