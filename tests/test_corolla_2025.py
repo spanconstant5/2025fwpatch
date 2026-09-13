@@ -42,18 +42,21 @@ def test_rejects_unrecognized_full_size_image():
     verify_codeflash(bytes(0x200000))
 
 
-def test_offline_identity_does_not_widen_runtime_allowlist():
+def test_runtime_allowlist_matches_offline_specimen_identity():
+  """APPLICATION_F181 and TARGET are intentionally aligned after 2025 wire confirmation."""
   assert len(APPLICATION_F181) == 33
-  assert APPLICATION_F181 != TARGET.application_software_id
-  with pytest.raises(ValueError, match="exact target F181"):
-    replace(TARGET, application_software_id=APPLICATION_F181).validate()
+  assert APPLICATION_F181 == TARGET.application_software_id
   TARGET.validate()
+  # 2023 secondary still fails the guard.
+  wrong_2023 = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111202000" + bytes(4)
+  with pytest.raises(ValueError, match="exact target F181"):
+    replace(TARGET, application_software_id=wrong_2023).validate()
 
 
 def test_real_2025_identity_route_sectors_and_crc(corpus, evidence_root):
   raw, preflight = corpus
   report = verify_codeflash(raw)
-  assert report["runtime_identity_matches"] is False
+  assert report["runtime_identity_matches"] is True
   assert report["unresolved"]
   assert report["ecu_serial"] == preflight["identity"]["ecu_serial"]
   assert report["observed_acquisition_route"] == preflight["route"] == {"bus": 1, "param": 1}

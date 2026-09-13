@@ -273,14 +273,14 @@ def test_identity_mismatch_records_observed_values_without_running_payload(probe
   # created_at is dynamic — pop and check it is a well-formed UTC ISO-8601 timestamp.
   created_at = report.pop("created_at")
   assert isinstance(created_at, str) and created_at.endswith("+00:00")
-  # part_number and application_software_id fail; boot matches the fixture identity
-  # (target.boot_software_id == identity.boot_software_id in the fixture), so boot
-  # is not in mismatched_fields and boot_software_id_note is absent.
+  # part_number fails; application_software_id and boot both match the fixture target
+  # (observed_application == TARGET.application_software_id == APPLICATION_F181 now).
+  # boot_software_id is not in mismatched_fields and boot_software_id_note is absent.
   assert report == {
     "schema": 1,
     "authorizes_patch_or_restore": False,
     "recognition": "known-2025-corolla-specimen",
-    "mismatched_fields": ["part_number", "application_software_id"],
+    "mismatched_fields": ["part_number"],
     "expected": {
       "application_software_id": target.application_software_id.hex(),
       "boot_software_id": target.boot_software_id.hex(),

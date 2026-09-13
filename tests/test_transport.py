@@ -139,7 +139,10 @@ def test_transport_opens_current_panda_and_uds_shape_and_closes():
 def test_transport_rejectable_identity_preserves_raw_application_bytes():
   from eps_patch.transport import EcuTransport
 
-  application = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111202000" + bytes(4)
+  # Application matches TARGET (2025 secondary); boot F181 has an unusual single-record format
+  # that would cause probe to reject on boot_software_id — the test verifies application bytes
+  # are preserved in that scenario.
+  application = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
   with EcuTransport(bindings=fake_bindings([])) as transport:
     reads = iter((application, b"\x01" + b"8965H0000000" + bytes(4)))
     FakeUds.instances[-1].read_data_by_identifier = lambda _did: next(reads)
