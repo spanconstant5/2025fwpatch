@@ -342,8 +342,8 @@ def test_identity_mismatch_with_unknown_application_reports_unrecognized(probe_c
   assert isinstance(created_at, str) and created_at.endswith("+00:00")
 
 
-def test_identity_mismatch_boot_placeholder_note_when_only_boot_fails(probe_case):
-  """When application matches but boot differs, the report names the placeholder."""
+def test_identity_mismatch_boot_confirmed_note_when_only_boot_fails(probe_case):
+  """When application matches but boot differs, the report names the confirmed wire value."""
   from eps_patch.probe import ProbeError, run_probe
 
   layout, target, payload, identity, result = probe_case
@@ -365,7 +365,7 @@ def test_identity_mismatch_boot_placeholder_note_when_only_boot_fails(probe_case
   report = json.loads(layout.probe_identity_failure_report.read_text(encoding="utf-8"))
   assert report["mismatched_fields"] == ["boot_software_id"]
   assert report["boot_software_id_note"] == (
-    "expected-is-placeholder: 2025 boot F181 not yet wire-captured"
+    "expected-is-confirmed: 0xF181 in programming session wire-captured 2026-09-13"
   )
   assert report["authorizes_patch_or_restore"] is False
   assert "boot_software_id_note" not in report.get("observed", {})
