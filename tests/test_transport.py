@@ -59,7 +59,7 @@ class FakeUds:
     return (
       b"\x02" + (b"!" * 32)
       if entered_programming
-      else b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111202000" + bytes(4)
+      else b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
     )
 
   def diagnostic_session_control(self, session):
@@ -153,15 +153,15 @@ def test_transport_skips_programming_session_when_application_does_not_match():
   """Application F181 mismatch: no session transition, boot F181 left empty."""
   from eps_patch.transport import EcuTransport
 
-  # 2025 secondary — matches the offline specimen but not the runtime target.
-  application_2025 = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
+  # 2023 secondary — different from the 2025 runtime target.
+  application_2023 = b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111202000" + bytes(4)
   with EcuTransport(bindings=fake_bindings([])) as transport:
     uds = FakeUds.instances[-1]
-    reads = iter([application_2025])
+    reads = iter([application_2023])
     uds.read_data_by_identifier = lambda _did: next(reads)
     identity = transport.read_identity()
 
-  assert identity.application_software_id == application_2025
+  assert identity.application_software_id == application_2023
   assert identity.boot_software_id == b""
   assert identity.part_number == b""
   # No session transitions: programming mode is not entered when app already fails.

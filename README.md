@@ -24,14 +24,14 @@ deliberately refuses to use that result as permission to flash.
 | Boot F181 (0xF181 in programming session) | Confirmed | `02` + `21` × 32 — wire-captured 2026-09-13 |
 | Patch and CRC source sectors | Verified offline | SHA-pinned from the retained 2025 dump |
 | High application-code transfer | Verified offline | byte-identical to the analyzed 2023 image from `0x17E00` upward |
-| 2025 runtime transport/payload behavior | Unresolved | no 2025 eligibility is granted |
-| Runtime application F181 allowlist | 2023 only | secondary record `8A3111202000` |
+| 2025 runtime transport/payload behavior | Unresolved | FACI/DCRA verified by probe before patch |
+| Runtime application F181 allowlist | 2025 | secondary record `8A3111213000` — matches wire evidence |
 
 The existing patch workflow was verified on a **2023 Toyota Corolla (US-made,
-VIN prefix 5)**. A matching primary part number and identical high application
-code do not prove that the retained payload, buffers, Flash controller state,
-or CAN route behave the same on the 2025 ECU. The exact secondary identity
-difference is therefore a hard stop, not a warning.
+VIN prefix 5)**. A matching primary part number and identical source-sector SHA-256
+do not guarantee that the retained payload, buffers, Flash controller state,
+or CAN route behave identically on the 2025 ECU. FACI/DCRA values are read
+live by `probe` and must match the pinned TARGET values before patch proceeds.
 
 The related StarPilot build is maintained separately at
 [spanconstant5/2025corolla-starpilot](https://github.com/spanconstant5/2025corolla-starpilot).
@@ -43,9 +43,10 @@ Firmware patch eligibility and openpilot vehicle support are independent.
 without hardware or artifact writes. Its authority is
 [the pinned Corolla report](https://github.com/kaikozlov/ghidra_rh850/blob/a747ee291b94ffecbee69cf062aec72b23c4dc8d/docs/variants/corolla-8965F1208000.md)
 and related `verify_spanconstant_*` tests. The reconstructed F181 is
-`02 || 8965F1208000[16] || 8A3111213000[16]`, with NUL padding. Runtime still
-accepts only the existing `8A3111202000` secondary record. Source-sector equality
-does not establish the 2025 route, payload runtime, or steering compatibility.
+`02 || 8965F1208000[16] || 8A3111213000[16]`, with NUL padding. Runtime now
+accepts the 2025 secondary record `8A3111213000`, confirmed by the wire-captured
+CodeFlash dump (SHA256 = `CODEFLASH_SHA256`). FACI/DCRA values are read live by
+`probe` and compared to TARGET pins before any write proceeds.
 Set `COROLLA_EVIDENCE_ROOT` to that reference checkout and run
 `python -m pytest tests/test_corolla_2025.py tests/test_envelope_pins.py`.
 Without the variable, real-corpus tests explicitly skip; an invalid supplied path fails.
@@ -191,15 +192,15 @@ the command instead atomically replaces this untrusted diagnostic:
 
 It records the observed and expected F181 values, Panda serial, and reviewed
 payload digest. It explicitly cannot authorize patch or restore, contains no
-sector bytes, and does not weaken the identity allowlist. Preserve it rather
+sector bytes, and does not carry patch authorization. Preserve it rather
 than rerunning the probe to collect the same identity.
 
 The report includes several machine-readable fields:
 
 - `recognition` — `"known-2025-corolla-specimen"` when the observed application
   software identity matches the F181 reconstructed from the Span 2025 Corolla
-  CodeFlash acquisition. The runtime allowlist still rejects this identity;
-  recognition is an offline diagnostic label, not an authorization.
+  CodeFlash acquisition. The runtime allowlist now accepts this identity;
+  recognition is an offline diagnostic label, not a substitute for a passing probe.
   `"unrecognized"` means the observed application identity does not match any
   known offline specimen.
 - `mismatched_fields` — list of the specific field names that differed from the
@@ -629,8 +630,8 @@ Yes. The FACI sequence is byte-identical to the flash shellcode in Toyota's Cali
 [固定版本的 Corolla 报告](https://github.com/kaikozlov/ghidra_rh850/blob/a747ee291b94ffecbee69cf062aec72b23c4dc8d/docs/variants/corolla-8965F1208000.md)
 及相关 `verify_spanconstant_*` 测试。重建的 F181 为
 `02 || 8965F1208000[16] || 8A3111213000[16]`，记录以 NUL 补齐。
-运行时仍只接受原有的 `8A3111202000` 第二记录。源扇区一致不能证明 2025
-路由、payload 运行环境或转向功能兼容。将 `COROLLA_EVIDENCE_ROOT` 指向参考仓库后，运行
+运行时现已接受 2025 第二记录 `8A3111213000`，与线路采集的 CodeFlash dump 一致。源扇区一致不能证明 2025
+路由、payload 运行环境或转向功能兼容；FACI/DCRA 值由 `probe` 实时读取并与 TARGET 固定值比对。将 `COROLLA_EVIDENCE_ROOT` 指向参考仓库后，运行
 `python -m pytest tests/test_corolla_2025.py tests/test_envelope_pins.py` 可验证真实采集文件。
 未设置路径时明确跳过真实文件测试；提供无效路径则失败。
 
@@ -765,7 +766,7 @@ Probe 绝不擦除或写入 Flash。它执行一次综合只读证据流程，�
 
 报告包含以下机器可读字段：
 
-- `recognition` — 值为 `"known-2025-corolla-specimen"` 表示观察到的 application software identity 与 Span 2025 Corolla CodeFlash 采集文件重建出的 F181 匹配。运行时 allowlist 仍会拒绝该身份；recognition 是离线诊断标签，不是授权。值为 `"unrecognized"` 则表示观察到的 application identity 与任何已知离线标本均不符。
+- `recognition` — 值为 `"known-2025-corolla-specimen"` 表示观察到的 application software identity 与 Span 2025 Corolla CodeFlash 采集文件重建出的 F181 匹配。运行时 allowlist 现已接受该身份；recognition 是离线诊断标签，不能代替通过 probe。值为 `"unrecognized"` 则表示观察到的 application identity 与任何已知离线标本均不符。
 - `mismatched_fields` — 与目标不符的具体字段名列表（`part_number`、`application_software_id`、`boot_software_id`、`panda_serial`），无需手动对比十六进制即可准确定位失败原因。
 - `boot_software_id_note`（仅在 boot F181 不匹配时出现）— `"not-read: application F181 mismatch caused programming-session skip"` 表示 application 已失败，为避免该车型已知的 FRC/DRCC ignition-cycle 故障而跳过了编程会话，boot F181 未被读取；`"expected-is-placeholder: 2025 boot F181 not yet wire-captured"` 表示运行时目标仍使用占位符，需通过实车 boot 会话读取并审查后才能填入真实值。
 

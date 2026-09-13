@@ -29,7 +29,7 @@ def test_target_manifest_locks_transport_and_boot_markers():
   assert (TARGET.uds_request_id, TARGET.uds_response_id, TARGET.bus) == (0x7A1, 0x7A9, 0)
   assert (TARGET.ram_address, TARGET.envelope_length) == (0xFEBF0000, 0x1000)
   assert TARGET.application_software_id == (
-    b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111202000" + bytes(4)
+    b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
   )
   assert TARGET.boot_software_id == b"\x02" + (b"!" * 32)
   assert TARGET.new_uds is False

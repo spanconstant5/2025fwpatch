@@ -72,7 +72,7 @@ class TargetManifest:
     if self.part_number != b"8965F1208000" or not self.part_number.isascii():
       raise ValueError("unsupported EPS part number")
     _expected_app_sw_id = (
-      b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111202000" + bytes(4)
+      b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
     )
     if self.application_software_id != _expected_app_sw_id:
       raise ValueError("application software identity is not the exact target F181 record")
@@ -144,7 +144,7 @@ class TargetManifest:
 TARGET = TargetManifest(
   part_number=b"8965F1208000",
   application_software_id=(
-    b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111202000" + bytes(4)
+    b"\x02" + b"8965F1208000" + bytes(4) + b"8A3111213000" + bytes(4)
   ),
   boot_software_id=b"\x02" + (b"!" * 32),
   new_uds=False,
